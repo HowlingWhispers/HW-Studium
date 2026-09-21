@@ -51,6 +51,7 @@ export function createApp(options: { store?: StudiumStore; ingestSecret?: string
     return res.status(result.inserted ? 201 : 200).json({
       ok: true,
       inserted: result.inserted,
+      updated: result.updated,
       bundleId: parsed.data.bundleId,
     });
   });
