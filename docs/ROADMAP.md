@@ -23,7 +23,7 @@
 
 ## 0.3 - Ecosystem adapters
 
-- [ ] Speculus research-bundle exporter
+- [x] Speculus research-bundle exporter
 - [ ] Fabula runtime-bundle exporter
 - [ ] bundle signing/version validation
 - [ ] scheduled weekly analysis
