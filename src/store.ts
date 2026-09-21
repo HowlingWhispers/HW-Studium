@@ -27,6 +27,10 @@ export class StudiumStore {
     return { inserted: false, updated: true };
   }
 
+  removeBundle(bundleId: string): boolean {
+    return this.bundles.delete(bundleId);
+  }
+
   listBundlesForWorld(worldId: string): ResearchBundle[] {
     return [...this.bundles.values()].filter((bundle) => bundle.worldId === worldId);
   }
