@@ -28,7 +28,7 @@ Studium may prepare an Orbis-shaped draft, but Studium has no direct canon-write
 
 ### Speculus
 
-Produces roleplay and simulation history. A future Speculus adapter will sanitize and normalize selected history into Studium research bundles.
+Produces roleplay and simulation history. Current Speculus V2 and V3 adapters sanitize committed turn text and small world metadata into Studium research bundles. Rerolls replace the same stable turn bundle and deleted turns issue a retraction.
 
 ### Fabula
 
@@ -64,7 +64,7 @@ Studium should not require complete raw roleplay logs by default.
 
 Source systems should produce sanitized research bundles containing only the material needed for analysis. Bundle schema v1 requires `sanitized: true`; unsanitized bundles are rejected.
 
-A later encrypted transport/storage layer can be added without changing the logical bundle contract.
+Service-to-service ingestion is authenticated. Durable encrypted storage, retention controls and a retry/outbox layer are still required before production research history should be trusted across restarts or outages.
 
 ## Signals
 
