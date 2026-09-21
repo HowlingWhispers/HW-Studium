@@ -47,4 +47,12 @@ npm run build
 
 Default development port: `4310`.
 
+Research ingestion requires a service secret:
+
+```env
+STUDIUM_INGEST_SECRET=<shared service-to-service secret>
+```
+
+Speculus and future Fabula adapters authenticate to Studium with this secret.
+
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
