@@ -56,6 +56,27 @@ export function createApp(options: { store?: StudiumStore; ingestSecret?: string
     });
   });
 
+  app.delete('/api/v1/bundles/:bundleId', (req, res) => {
+    if (!ingestSecret) {
+      return res.status(503).json({ ok: false, error: 'studium_ingest_not_configured' });
+    }
+
+    const supplied = req.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
+    const expectedBytes = Buffer.from(ingestSecret);
+    const suppliedBytes = Buffer.from(supplied);
+    if (expectedBytes.length !== suppliedBytes.length || !timingSafeEqual(expectedBytes, suppliedBytes)) {
+      return res.status(401).json({ ok: false, error: 'studium_ingest_unauthorized' });
+    }
+
+    const removed = store.removeBundle(req.params.bundleId);
+    return res.status(removed ? 200 : 404).json({
+      ok: removed,
+      removed,
+      bundleId: req.params.bundleId,
+      ...(removed ? {} : { error: 'research_bundle_not_found' }),
+    });
+  });
+
   app.put('/api/v1/worlds/:worldId/config', (req, res) => {
     const parsed = worldConfigSchema.safeParse({
       ...req.body,
