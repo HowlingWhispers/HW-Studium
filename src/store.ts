@@ -12,10 +12,19 @@ export class StudiumStore {
   private proposals = new Map<string, StudiumProposal>();
   private reports = new Map<string, WeeklyWorldReport[]>();
 
-  addBundle(bundle: ResearchBundle): { inserted: boolean } {
-    if (this.bundles.has(bundle.bundleId)) return { inserted: false };
+  addBundle(bundle: ResearchBundle): { inserted: boolean; updated: boolean } {
+    const existing = this.bundles.get(bundle.bundleId);
+    if (!existing) {
+      this.bundles.set(bundle.bundleId, bundle);
+      return { inserted: true, updated: false };
+    }
+
+    if (JSON.stringify(existing) === JSON.stringify(bundle)) {
+      return { inserted: false, updated: false };
+    }
+
     this.bundles.set(bundle.bundleId, bundle);
-    return { inserted: true };
+    return { inserted: false, updated: true };
   }
 
   listBundlesForWorld(worldId: string): ResearchBundle[] {
