@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import express from 'express';
 import { z } from 'zod';
 import { analyzeWorld } from './analyzer.js';
@@ -9,7 +10,9 @@ import {
 import { createWeeklyWorldReport } from './report.js';
 import { StudiumStore } from './store.js';
 
-export function createApp(store = new StudiumStore()) {
+export function createApp(options: { store?: StudiumStore; ingestSecret?: string | null } = {}) {
+  const store = options.store ?? new StudiumStore();
+  const ingestSecret = options.ingestSecret ?? process.env.STUDIUM_INGEST_SECRET ?? '';
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '5mb' }));
@@ -24,6 +27,17 @@ export function createApp(store = new StudiumStore()) {
   });
 
   app.post('/api/v1/bundles', (req, res) => {
+    if (!ingestSecret) {
+      return res.status(503).json({ ok: false, error: 'studium_ingest_not_configured' });
+    }
+
+    const supplied = req.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
+    const expectedBytes = Buffer.from(ingestSecret);
+    const suppliedBytes = Buffer.from(supplied);
+    if (expectedBytes.length !== suppliedBytes.length || !timingSafeEqual(expectedBytes, suppliedBytes)) {
+      return res.status(401).json({ ok: false, error: 'studium_ingest_unauthorized' });
+    }
+
     const parsed = researchBundleSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
