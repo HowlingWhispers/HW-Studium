@@ -18,7 +18,7 @@ describe('Studium API', () => {
       .send({
         schemaVersion: 'studium.bundle.v1',
         bundleId: 'bundle-1',
-        worldId: 'bitterroot',
+        worldId: 'test-world',
         source: 'speculus',
         capturedAt: '2026-09-21T12:00:00.000Z',
         sanitized: false,
