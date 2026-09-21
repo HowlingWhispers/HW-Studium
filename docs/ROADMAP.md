@@ -23,7 +23,8 @@
 
 ## 0.3 - Ecosystem adapters
 
-- [x] Speculus research-bundle exporter
+- [x] Speculus V2/V3 research-bundle exporter
+- [x] Stable reroll replacement and deleted-turn retraction
 - [ ] Fabula runtime-bundle exporter
 - [ ] bundle signing/version validation
 - [ ] scheduled weekly analysis
