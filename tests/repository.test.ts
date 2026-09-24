@@ -1,6 +1,6 @@
 import { analyzeStoredResearch } from '../src/semantic-service.js';
 import { MockSemanticAnalyst } from '../src/semantic-analyst.js';
-import { bundleFixture, inputFixture, resultFixture, claimFixture } from './semantic-fixtures.js';
+import { addSupport, bundleFixture, inputFixture, resultFixture, claimFixture } from './semantic-fixtures.js';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -114,6 +114,23 @@ describe('PostgreSQL research persistence', () => {
     await repository.run('world-a', 'service:ingest', store => store.removeBundle('bundle-a'));
     expect((await repository.run('world-a', 'owner:alice', store => store.listSemanticAnalyses('world-a')))[0].evidenceStale).toBe(true);
     expect((await repository.history('world-a')).filter(row => row.kind === 'analysis').map(row => row.action)).toEqual(['create', 'replace']);
+  }, 30000);
+
+  it('preserves semantic proposal identity, owner edits and support changes across restart', async () => {
+    const proposal = await repository.run('world-a', 'owner:alice', store => {
+      for (let n = 1; n <= 3; n++) addSupport(store, n);
+      const proposal = store.listProposals('world-a')[0];
+      store.editProposalDraft(proposal.id, { name: 'Reviewed title', summary: 'Owner wording' });
+      return store.updateProposalStatus(proposal.id, 'accepted')!;
+    });
+    await close(); await open();
+    expect(await repository.run('world-a', 'owner:alice', store => store.getProposal(proposal.id))).toMatchObject({ evidenceCount: 3, status: 'accepted', orbisDraft: { name: 'Reviewed title' } });
+    await repository.run('world-a', 'service:ingest', store => store.removeBundle('bundle-1'));
+    await close(); await open();
+    expect(await repository.run('world-a', 'owner:alice', store => store.getProposal(proposal.id))).toMatchObject({ evidenceCount: 2, evidenceStale: true });
+    await repository.run('world-a', 'owner:alice', store => addSupport(store, 1));
+    expect(await repository.run('world-a', 'owner:alice', store => store.getProposal(proposal.id))).toMatchObject({ evidenceCount: 3, evidenceStale: false, status: 'ready_for_review', orbisDraft: { name: 'Reviewed title', summary: 'Owner wording' } });
+    expect((await repository.history('world-a')).filter(row => row.kind === 'proposal').length).toBeGreaterThan(1);
   }, 30000);
 
   it.skipIf(!process.env.STUDIUM_TEST_DATABASE_URL)('serializes concurrent server instances without lost evidence', async () => {

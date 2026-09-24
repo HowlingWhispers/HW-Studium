@@ -99,7 +99,7 @@ export function createApp(options: {
       const bundles = store.listBundlesForWorld(worldId);
       const records = bundles.flatMap(bundle => bundle.records);
       const config = store.getWorldConfig(worldId);
-      const proposals = store.reconcileProposals(worldId, analyzeWorld(worldId, records, config));
+      const proposals = [...store.reconcileProposals(worldId, analyzeWorld(worldId, records, config)), ...store.synthesizeProposals(worldId).filter(p => !p.evidenceStale)];
       return { config, bundleCount: bundles.length, recordCount: records.length, proposals };
     });
     return res.json({ ok: true, worldId, ...result });
@@ -117,12 +117,26 @@ export function createApp(options: {
     const proposal = await repository.run(worldId, actor(res), store => store.updateProposalStatus(pathParam(req, 'proposalId'), parsed.data.status));
     return res.json({ ok: true, proposal, canonChanged: false, note: 'Changing a Studium proposal status does not write to Orbis.' });
   });
+  app.patch('/api/v1/proposals/:proposalId/draft', owner, async (req, res) => {
+    const worldId = await repository.findWorld('proposal', pathParam(req, 'proposalId'));
+    if (!worldId) return res.status(404).json({ ok: false, error: 'proposal_not_found' });
+    if (!allowed(res, worldId)) return;
+    const parsed = z.object({ name: z.string().min(1).max(500), summary: z.string().min(1).max(4000) }).strict().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ ok: false, error: 'invalid_proposal_draft' });
+    const proposal = await repository.run(worldId, actor(res), store => store.editProposalDraft(pathParam(req, 'proposalId'), parsed.data));
+    return res.json({ ok: true, proposal, canonChanged: false });
+  });
+  app.post('/api/v1/worlds/:worldId/synthesize', async (req, res) => {
+    if (!z.object({}).strict().safeParse(req.body ?? {}).success) return res.status(400).json({ ok: false, error: 'synthesis_request_must_be_empty' });
+    const proposals = await repository.run(pathParam(req, 'worldId'), actor(res), store => store.synthesizeProposals(pathParam(req, 'worldId')));
+    return res.json({ ok: true, proposals, canonChanged: false });
+  });
   app.post('/api/v1/worlds/:worldId/weekly-report', async (req, res) => {
     const worldId = pathParam(req, 'worldId');
     const report = await repository.run(worldId, actor(res), store => {
       const bundles = store.listBundlesForWorld(worldId);
       const config = store.getWorldConfig(worldId);
-      const proposals = store.reconcileProposals(worldId, analyzeWorld(worldId, bundles.flatMap(bundle => bundle.records), config));
+      const proposals = [...store.reconcileProposals(worldId, analyzeWorld(worldId, bundles.flatMap(bundle => bundle.records), config)), ...store.synthesizeProposals(worldId).filter(p => !p.evidenceStale)];
       return store.addReport(createWeeklyWorldReport(worldId, bundles, proposals));
     });
     return res.status(201).json({ ok: true, report });

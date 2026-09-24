@@ -61,3 +61,5 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/ROADMAP.md](docs/ROAD
 See [durable storage operations](docs/STORAGE.md) for migrations, owner grants, audit history, retention and tests.
 
 The [semantic analyst boundary](docs/SEMANTIC_ANALYST.md) supports provider-neutral extraction, evidence validation and durable advisory results. Live gateway and Orbis context adapters must be supplied by an approved server integration; no model is activated by default.
+
+[Proposal synthesis](docs/PROPOSAL_SYNTHESIS.md) clusters current semantic evidence into owner-reviewable drafts, including relationship edges, source provenance and editable draft text.
