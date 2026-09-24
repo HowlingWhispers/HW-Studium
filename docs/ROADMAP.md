@@ -1,5 +1,7 @@
 # Studium roadmap
 
+Detailed architecture and sequencing for the world-agnostic canon-development system lives in [LIVING_WORLD_CANON.md](./LIVING_WORLD_CANON.md).
+
 ## 0.1 - Research core
 
 - [x] Define sanitized research-bundle v1
@@ -32,13 +34,28 @@
 
 ## 0.4 - Semantic analyst
 
+### 0.4a - Semantic contracts
+
+- [ ] classify world fact candidates, runtime facts, beliefs, rumors, observations, relationship developments, events, state changes, inferences, conflicts and unknowns
+- [ ] support extension-friendly world entity kinds
+- [ ] add provenance and extraction-version contracts
+- [ ] add source-precedence helpers and tests
+- [ ] keep research-bundle v1 backward compatible
+
+### 0.4b - Semantic extraction
+
+- [ ] provider-neutral SemanticAnalyst interface
+- [ ] deterministic mock analyst for tests
 - [ ] analyze sanitized prose/session history
-- [ ] derive structured signals automatically
+- [ ] derive structured claims and signals automatically
+- [ ] validate all model output before storage
+- [ ] consume a bounded, versioned Orbis canon projection
 - [ ] detect recurring unnamed places
 - [ ] detect emerging families and households
 - [ ] detect developing relationships
 - [ ] detect new factions/customs/traditions
 - [ ] detect recurring local events and history
+- [ ] distinguish belief/rumor/observation from objective canon
 - [ ] detect canon/runtime contradictions
 - [ ] explain evidence behind every suggestion
 
@@ -46,6 +63,7 @@
 
 - [ ] Studium proposal inbox in Orbis
 - [ ] side-by-side canon comparison
+- [ ] evidence/provenance display
 - [ ] accept / edit / reject / defer
 - [ ] convert proposals into Orbis record drafts
 - [ ] owner-controlled publication
@@ -59,3 +77,13 @@
 - [ ] world coverage/gap analysis
 - [ ] configurable research questions
 - [ ] project-owner research tools
+
+## Later - Genesis / sparse-world authoring
+
+After the Living Canon contracts and review flow are stable:
+
+- [ ] world-contract / World Brain assistance
+- [ ] staged sketch / expand / weave authoring
+- [ ] entity and relationship draft generation
+- [ ] import/bind existing unstructured lore
+- [ ] reuse proposal, provenance and owner-review infrastructure
