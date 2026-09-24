@@ -59,3 +59,5 @@ Speculus and future Fabula adapters authenticate to Studium with this secret.
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
 
 See [durable storage operations](docs/STORAGE.md) for migrations, owner grants, audit history, retention and tests.
+
+The [semantic analyst boundary](docs/SEMANTIC_ANALYST.md) supports provider-neutral extraction, evidence validation and durable advisory results. Live gateway and Orbis context adapters must be supplied by an approved server integration; no model is activated by default.

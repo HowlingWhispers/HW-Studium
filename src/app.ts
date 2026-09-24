@@ -1,3 +1,5 @@
+import { SemanticAnalysisError, type SemanticAnalyst } from './semantic-analyst.js';
+import { analyzeStoredResearch, SemanticServiceError, type SemanticContextResolver } from './semantic-service.js';
 import { timingSafeEqual } from 'node:crypto';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
@@ -24,6 +26,7 @@ export function createApp(options: {
   repository?: ResearchRepository;
   ingestSecret?: string | null;
   authenticateOwner?: AuthenticateOwner;
+  semantic?: { analyst: SemanticAnalyst; context: SemanticContextResolver; timeoutMs?: number };
 } = {}) {
   const repository = options.repository ?? new MemoryResearchRepository();
   const ingestSecret = options.ingestSecret ?? process.env.STUDIUM_INGEST_SECRET ?? '';
@@ -68,6 +71,21 @@ export function createApp(options: {
 
   app.use('/api/v1/worlds/:worldId', owner, (req, res, next) => {
     if (allowed(res, pathParam(req, 'worldId'))) next();
+  });
+  app.post('/api/v1/worlds/:worldId/semantic-analysis', async (req, res) => {
+    if (!z.object({}).strict().safeParse(req.body ?? {}).success) return res.status(400).json({ ok: false, error: 'semantic_request_must_be_empty' });
+    if (!options.semantic) return res.status(503).json({ ok: false, error: 'semantic_analyst_not_configured' });
+    const controller = new AbortController();
+    const cancel = () => { if (!res.writableEnded) controller.abort(); };
+    res.once('close', cancel);
+    try {
+      const analysis = await analyzeStoredResearch({ repository, ...options.semantic, worldId: pathParam(req, 'worldId'), actor: actor(res), signal: controller.signal });
+      return res.status(201).json({ ok: true, analysis, canonChanged: false });
+    } finally { res.removeListener('close', cancel); }
+  });
+  app.get('/api/v1/worlds/:worldId/semantic-analyses', async (req, res) => {
+    const analyses = await repository.run(pathParam(req, 'worldId'), actor(res), store => store.listSemanticAnalyses(pathParam(req, 'worldId')));
+    return res.json({ ok: true, analyses });
   });
   app.put('/api/v1/worlds/:worldId/config', async (req, res) => {
     const parsed = worldConfigSchema.safeParse({ ...req.body, worldId: pathParam(req, 'worldId') });
@@ -121,6 +139,8 @@ export function createApp(options: {
     return res.json({ ok: true, history, nextCursor: history.at(-1)?.sequence ?? parsed.data });
   });
   app.use((error: Error & { status?: number }, _req: Request, res: Response, _next: NextFunction) => {
+    if (error instanceof SemanticServiceError) return res.status(409).json({ ok: false, error: error.code });
+    if (error instanceof SemanticAnalysisError) return res.status(error.code === 'semantic_timeout' ? 504 : 502).json({ ok: false, error: error.code });
     if (['document_world_conflict', 'proposal_evidence_stale'].includes(error.message)) return res.status(409).json({ ok: false, error: error.message });
     if (error.status === 400 || error.status === 413) return res.status(error.status).json({ ok: false, error: 'invalid_request_body' });
     return res.status(500).json({ ok: false, error: 'studium_operation_failed' });

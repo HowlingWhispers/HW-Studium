@@ -1,3 +1,4 @@
+import { storedSemanticAnalysisSchema, type StoredSemanticAnalysis } from './semantic-service.js';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type {
@@ -8,12 +9,13 @@ import type {
   WorldConfig,
 } from './contracts.js';
 
-export interface StoreDocument { kind: 'bundle' | 'config' | 'proposal' | 'report'; id: string; value: unknown }
+export interface StoreDocument { kind: 'bundle' | 'config' | 'proposal' | 'report' | 'analysis'; id: string; value: unknown }
 
 export class StudiumStore {
   constructor(documents: StoreDocument[] = []) {
     for (const document of structuredClone(documents)) {
       switch (document.kind) {
+        case 'analysis': this.analyses.set(document.id, storedSemanticAnalysisSchema.parse(document.value)); break;
         case 'bundle': this.bundles.set(document.id, document.value as ResearchBundle); break;
         case 'config': this.configs.set(document.id, document.value as WorldConfig); break;
         case 'proposal': this.proposals.set(document.id, document.value as StudiumProposal); break;
@@ -30,6 +32,7 @@ export class StudiumStore {
 
   documents(): StoreDocument[] {
     return structuredClone([
+      ...[...this.analyses].map(([id, value]) => ({ kind: 'analysis' as const, id, value })),
       ...[...this.bundles].map(([id, value]) => ({ kind: 'bundle' as const, id, value })),
       ...[...this.configs].map(([id, value]) => ({ kind: 'config' as const, id, value })),
       ...[...this.proposals].map(([id, value]) => ({ kind: 'proposal' as const, id, value })),
@@ -37,7 +40,23 @@ export class StudiumStore {
     ]);
   }
 
+  addSemanticAnalysis(analysis: StoredSemanticAnalysis): StoredSemanticAnalysis {
+    const value = storedSemanticAnalysisSchema.parse(analysis);
+    this.analyses.set(value.id, value);
+    return value;
+  }
+
+  listSemanticAnalyses(worldId: string): StoredSemanticAnalysis[] {
+    return [...this.analyses.values()].filter(value => value.worldId === worldId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 50);
+  }
+
+  private analyses = new Map<string, StoredSemanticAnalysis>();
+
   private invalidate(worldId: string) {
+    for (const analysis of this.analyses.values()) {
+      if (analysis.worldId === worldId) analysis.evidenceStale = true;
+    }
     for (const proposal of this.proposals.values()) {
       if (proposal.worldId === worldId && !proposal.evidenceStale) {
         proposal.evidenceStale = true;
