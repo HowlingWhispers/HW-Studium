@@ -1,3 +1,6 @@
+import { analyzeStoredResearch } from '../src/semantic-service.js';
+import { MockSemanticAnalyst } from '../src/semantic-analyst.js';
+import { bundleFixture, inputFixture, resultFixture, claimFixture } from './semantic-fixtures.js';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -29,7 +32,7 @@ describe('PostgreSQL research persistence', () => {
       const db = new PGlite(directory);
       await db.waitReady;
       pool = { connect: async () => ({ query: async (sql, params) => {
-        if (!params && sql.includes('CREATE TABLE') && sql.includes(';')) { await db.exec(sql); return { rows: [] }; }
+        if (!params && sql.includes(';')) { await db.exec(sql); return { rows: [] }; }
         return db.query(sql, params);
       }, release() {} }) };
       close = () => db.close();
@@ -100,6 +103,18 @@ describe('PostgreSQL research persistence', () => {
     expect(await repository.history('world-b')).toEqual([]);
     expect(await repository.history('world-a')).toHaveLength(1);
   });
+
+  it('persists validated semantic results across restart and audits invalidation', async () => {
+    await repository.run('world-a', 'service:ingest', store => store.addBundle(bundleFixture()));
+    const analysis = await analyzeStoredResearch({ repository, worldId: 'world-a', actor: 'owner:alice',
+      analyst: new MockSemanticAnalyst('test-v1', resultFixture([claimFixture('character_belief')])), context: { resolve: async () => inputFixture() } });
+    await close(); await open();
+    const stored = await repository.run('world-a', 'owner:alice', store => store.listSemanticAnalyses('world-a'));
+    expect(stored).toEqual([analysis]);
+    await repository.run('world-a', 'service:ingest', store => store.removeBundle('bundle-a'));
+    expect((await repository.run('world-a', 'owner:alice', store => store.listSemanticAnalyses('world-a')))[0].evidenceStale).toBe(true);
+    expect((await repository.history('world-a')).filter(row => row.kind === 'analysis').map(row => row.action)).toEqual(['create', 'replace']);
+  }, 30000);
 
   it.skipIf(!process.env.STUDIUM_TEST_DATABASE_URL)('serializes concurrent server instances without lost evidence', async () => {
     await Promise.all(Array.from({ length: 8 }, (_, n) => repository.run('world-a', 'service:ingest', store => store.addBundle({ ...bundle(), bundleId: `bundle-${n}` }))));

@@ -35,11 +35,12 @@ export class PostgresResearchRepository implements ResearchRepository {
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock(4310, 1)');
       await client.query('CREATE TABLE IF NOT EXISTS studium_migrations (version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
-      const result = await client.query('SELECT version FROM studium_migrations WHERE version = 1');
-      if (!result.rows.length) {
-        // Build copies migrations beside the compiled src directory.
-        await client.query(await readFile(new URL('../migrations/001_research.sql', import.meta.url), 'utf8'));
-        await client.query('INSERT INTO studium_migrations(version) VALUES (1)');
+      for (const [version, file] of [[1, '001_research.sql'], [2, '002_semantic_analysis.sql']] as const) {
+        const result = await client.query('SELECT version FROM studium_migrations WHERE version = $1', [version]);
+        if (!result.rows.length) {
+          await client.query(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
+          await client.query('INSERT INTO studium_migrations(version) VALUES ($1)', [version]);
+        }
       }
       await client.query('COMMIT');
     } catch (error) {
