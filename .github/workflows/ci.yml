@@ -8,6 +8,22 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: studium
+          POSTGRES_PASSWORD: test-only
+          POSTGRES_DB: studium_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U studium -d studium_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      STUDIUM_TEST_DATABASE_URL: postgres://studium:test-only@localhost:5432/studium_test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,7 +34,7 @@ jobs:
           node-version: 22
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Type check
         run: npm run lint
