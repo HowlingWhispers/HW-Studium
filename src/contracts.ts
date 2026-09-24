@@ -6,7 +6,7 @@ export type SourceSystem = z.infer<typeof sourceSystemSchema>;
 export const analysisModeSchema = z.enum(['conservative', 'balanced', 'exploratory']);
 export type AnalysisMode = z.infer<typeof analysisModeSchema>;
 
-export const entityTypeSchema = z.enum([
+export const coreEntityTypeSchema = z.enum([
   'character',
   'place',
   'family',
@@ -19,6 +19,11 @@ export const entityTypeSchema = z.enum([
   'lore',
 ]);
 
+export const extensionEntityTypeSchema = z
+  .string()
+  .regex(/^custom:[a-z0-9][a-z0-9._-]{0,63}$/);
+
+export const entityTypeSchema = z.union([coreEntityTypeSchema, extensionEntityTypeSchema]);
 export type EntityType = z.infer<typeof entityTypeSchema>;
 
 export const signalTypeSchema = z.enum([
@@ -144,3 +149,121 @@ export interface WeeklyWorldReport {
   }>;
   note: string;
 }
+
+export const sourceAuthoritySchema = z.enum([
+  'orbis_canon',
+  'runtime_state',
+  'structured_signal',
+  'narrative_text',
+  'model_inference',
+]);
+
+export type SourceAuthority = z.infer<typeof sourceAuthoritySchema>;
+
+export const epistemicClassificationSchema = z.enum([
+  'world_fact_candidate',
+  'runtime_fact',
+  'character_belief',
+  'faction_belief',
+  'rumor',
+  'observation',
+  'relationship_development',
+  'event',
+  'state_change',
+  'inference',
+  'conflict',
+  'unknown',
+]);
+
+export type EpistemicClassification = z.infer<typeof epistemicClassificationSchema>;
+
+export const claimEntityRefSchema = z
+  .object({
+    canonicalId: z.string().min(1).max(200).optional(),
+    candidateKey: z.string().min(1).max(240).optional(),
+    label: z.string().min(1).max(240).optional(),
+    entityType: entityTypeSchema.optional(),
+  })
+  .strict()
+  .refine((value) => Boolean(value.canonicalId || value.candidateKey), {
+    message: 'A claim entity reference requires canonicalId or candidateKey.',
+  });
+
+export type ClaimEntityRef = z.infer<typeof claimEntityRefSchema>;
+
+export const claimValueSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('text'),
+    value: z.string().max(4000),
+  }).strict(),
+  z.object({
+    kind: z.literal('number'),
+    value: z.number().finite(),
+  }).strict(),
+  z.object({
+    kind: z.literal('boolean'),
+    value: z.boolean(),
+  }).strict(),
+  z.object({
+    kind: z.literal('entity'),
+    ref: claimEntityRefSchema,
+  }).strict(),
+]);
+
+export type ClaimValue = z.infer<typeof claimValueSchema>;
+
+export const claimEvidenceRefSchema = z
+  .object({
+    bundleId: z.string().min(1).max(200),
+    recordId: z.string().min(1).max(200),
+    source: sourceSystemSchema,
+    authority: sourceAuthoritySchema,
+    capturedAt: z.string().min(1).optional(),
+    occurredAt: z.string().min(1).optional(),
+    runtimeEventId: z.string().min(1).max(200).optional(),
+    canonicalRevisionIds: z.array(z.string().min(1).max(200)).max(100).default([]),
+  })
+  .strict();
+
+export type ClaimEvidenceRef = z.infer<typeof claimEvidenceRefSchema>;
+
+export const semanticClaimSchema = z
+  .object({
+    schemaVersion: z.literal('studium.claim.v1'),
+    claimId: z.string().min(1).max(200),
+    worldId: z.string().min(1).max(200),
+    classification: epistemicClassificationSchema,
+    subject: claimEntityRefSchema,
+    predicate: z.string().min(1).max(240),
+    object: claimValueSchema.optional(),
+    holderRefs: z.array(claimEntityRefSchema).max(50).default([]),
+    confidence: z.number().min(0).max(1),
+    evidence: z.array(claimEvidenceRefSchema).min(1).max(100),
+    canonicalRefs: z.array(z.string().min(1).max(200)).max(100).default([]),
+    conflictRefs: z.array(z.string().min(1).max(200)).max(100).default([]),
+    extractionVersion: z.string().min(1).max(100),
+    tags: z.array(z.string().min(1).max(100)).max(100).default([]),
+  })
+  .strict()
+  .superRefine((claim, ctx) => {
+    if (
+      (claim.classification === 'character_belief' || claim.classification === 'faction_belief') &&
+      claim.holderRefs.length === 0
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['holderRefs'],
+        message: 'Belief claims require at least one holder reference.',
+      });
+    }
+
+    if (claim.classification === 'conflict' && claim.conflictRefs.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['conflictRefs'],
+        message: 'Conflict claims require at least one conflict reference.',
+      });
+    }
+  });
+
+export type SemanticClaim = z.infer<typeof semanticClaimSchema>;
