@@ -76,6 +76,10 @@ export const worldConfigSchema = z.object({
   reviewCadence: z.enum(['weekly', 'manual']).default('weekly'),
   minEvidence: z.number().int().min(2).max(50).optional(),
   enabled: z.boolean().default(true),
+  retention: z.object({
+    reviewAfterDays: z.number().int().min(1).max(36500).nullable().default(null),
+    legalHold: z.boolean().default(false),
+  }).optional(),
 });
 
 export type WorldConfig = z.infer<typeof worldConfigSchema>;
@@ -109,6 +113,7 @@ export type ProposalStatus = z.infer<typeof proposalStatusSchema>;
 export type EvidenceStrength = 'emerging' | 'repeated' | 'strong';
 
 export interface StudiumProposal {
+  evidenceStale?: boolean;
   id: string;
   worldId: string;
   signalKey: string;
@@ -131,6 +136,7 @@ export interface StudiumProposal {
 }
 
 export interface WeeklyWorldReport {
+  id?: string;
   worldId: string;
   generatedAt: string;
   periodStart: string;

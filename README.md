@@ -28,12 +28,13 @@ The initial service implements:
 - explicit proposal review states
 - no direct canon write path
 
-This is intentionally a backend-first research core. Persistence, authentication, scheduled jobs, source adapters, AI-assisted semantic analysis, and the Orbis review UI follow in later milestones.
+This is intentionally a backend-first research core. PostgreSQL persistence and a provisioned world-owner authorization boundary are included. Scheduled jobs, AI-assisted semantic analysis, Orbis identity integration, and the Orbis review UI follow in later milestones.
 
 ## Development
 
 ```bash
 npm install
+export DATABASE_URL=postgres://localhost/studium
 npm run dev
 ```
 
@@ -56,3 +57,5 @@ STUDIUM_INGEST_SECRET=<shared service-to-service secret>
 Speculus and future Fabula adapters authenticate to Studium with this secret.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
+
+See [durable storage operations](docs/STORAGE.md) for migrations, owner grants, audit history, retention and tests.
