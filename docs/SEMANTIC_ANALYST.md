@@ -1,6 +1,6 @@
 # Provider-neutral semantic analyst (Phase 3)
 
-This phase adds a validated extraction boundary, an injectable model-gateway adapter, a fixture-driven mock, and durable advisory analysis results. It does not activate a live model, wire Orbis retrieval, implement proposal synthesis, or write canon.
+This phase adds a validated extraction boundary, an injectable model-gateway adapter, a fixture-driven mock, and durable advisory analysis results. It does not activate a live model, wire Orbis retrieval, or write canon. The subsequent [proposal synthesis layer](PROPOSAL_SYNTHESIS.md) consumes its validated results.
 
 ## Server integration
 
@@ -13,7 +13,7 @@ Owner endpoints:
 - `POST /api/v1/worlds/:worldId/semantic-analysis` accepts an empty body only. Credentials, records, projections and provider URLs cannot be supplied by callers. Unconfigured service returns 503.
 - `GET /api/v1/worlds/:worldId/semantic-analyses` returns the latest 50 stored analyses for an authorized world owner.
 
-The existing structured-signal `/analyze` flow is unchanged. Semantic claims are not automatically turned into review proposals; that is Phase 4.
+The existing structured-signal `/analyze` flow is unchanged. The Phase 4 synthesis layer now produces threshold-qualified review proposals when a validated analysis is stored.
 
 ## Contracts and bounds
 
@@ -31,7 +31,7 @@ Comparable objective candidates that disagree with stronger facts become conflic
 
 Migration 002 permits an `analysis` document kind in the existing PostgreSQL store. Results retain extraction/canon revisions, creation time, input fingerprint and evidence-stale status. Only validated/reconciled output is persisted; failed or malformed raw provider responses are discarded. Database audit history records creations and invalidations.
 
-Extraction runs outside the database transaction so slow providers do not hold world locks. The service first binds selected evidence back to stored bundles, runs extraction, refreshes the trusted context, and checks the bundle/config snapshot again under the world lock before saving. Rerolls, retractions, configuration changes or context revisions during extraction reject the result. Later bundle/config changes mark stored analyses stale. The canon revision is explicit: Orbis and Studium do not share an atomic distributed transaction, and consumers must compare saved revisions with current canon before future synthesis/review. A canon edit after the final context refresh cannot be prevented by this boundary.
+Extraction runs outside the database transaction so slow providers do not hold world locks. The service first binds selected evidence back to stored bundles, runs extraction, refreshes the trusted context, and checks the bundle/config snapshot again under the world lock before saving. Rerolls, retractions, configuration changes or context revisions during extraction reject the result. Later changes to a selected input record mark its analyses stale. Proposal threshold configuration is handled by synthesis without discarding otherwise intact analyses. The canon revision is explicit: Orbis and Studium do not share an atomic distributed transaction, and consumers must compare saved revisions with current canon before future synthesis/review. A canon edit after the final context refresh cannot be prevented by this boundary.
 
 Provider extraction defaults to a 30-second timeout (configurable up to 120 seconds), supports cancellation, and drops output from a non-cooperative timed-out provider. Upstream error text is never returned because it may contain credentials or narrative data. The provider transport remains responsible for cancelling its network work and costs when the abort signal fires.
 

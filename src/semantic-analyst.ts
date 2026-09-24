@@ -38,6 +38,7 @@ export const explainedClaimSchema = z.object({
   claim: semanticClaimSchema,
   scope: semanticScopeSchema,
   explanation: z.string().min(1).max(2000),
+  relationshipDirection: z.enum(['directed', 'symmetric']).optional(),
 }).strict();
 export type ExplainedClaim = z.infer<typeof explainedClaimSchema>;
 
@@ -145,6 +146,8 @@ export function validateSemanticInput(raw: unknown): SemanticAnalysisInput {
 
 function validateClaim(item: ExplainedClaim, input: SemanticAnalysisInput, model: boolean) {
   const claim = item.claim;
+  requireValid(claim.classification !== 'relationship_development' || claim.object?.kind === 'entity', model);
+  requireValid(!item.relationshipDirection || (claim.classification === 'relationship_development' && claim.object?.kind === 'entity'), model);
   requireValid(claim.worldId === input.worldId && claim.extractionVersion === input.extractionVersion, model);
   const entityIds = new Set(input.canonProjection.entities.map(e => e.canonicalId));
   for (const ref of refs(claim)) {

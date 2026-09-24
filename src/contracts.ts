@@ -1,3 +1,4 @@
+import type { SemanticProposalMetadata } from './proposal-contracts.js';
 import { z } from 'zod';
 
 export const sourceSystemSchema = z.enum(['speculus', 'fabula']);
@@ -84,7 +85,7 @@ export const worldConfigSchema = z.object({
 
 export type WorldConfig = z.infer<typeof worldConfigSchema>;
 
-export const proposalKindSchema = z.enum([
+export const proposalKindSchema = z.union([extensionEntityTypeSchema, z.enum([
   'character',
   'place',
   'family',
@@ -96,7 +97,7 @@ export const proposalKindSchema = z.enum([
   'relationship',
   'lore',
   'inconsistency',
-]);
+])]);
 
 export type ProposalKind = z.infer<typeof proposalKindSchema>;
 
@@ -113,6 +114,8 @@ export type ProposalStatus = z.infer<typeof proposalStatusSchema>;
 export type EvidenceStrength = 'emerging' | 'repeated' | 'strong';
 
 export interface StudiumProposal {
+  semantic?: SemanticProposalMetadata;
+  draftEdited?: boolean;
   evidenceStale?: boolean;
   id: string;
   worldId: string;
@@ -128,6 +131,7 @@ export interface StudiumProposal {
   updatedAt: string;
   orbisDraft: {
     recordType: ProposalKind;
+    assertion?: Pick<SemanticProposalMetadata, 'classification' | 'scope' | 'subject' | 'predicate' | 'object' | 'holderRefs' | 'relationship'>;
     name: string;
     summary: string;
     source: 'studium-proposal';

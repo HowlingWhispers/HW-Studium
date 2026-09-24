@@ -1,9 +1,9 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { ResearchBundle } from './contracts.js';
 import type { ResearchRepository } from './repository.js';
 import {
-  canonicalJson, runSemanticAnalysis, semanticAnalysisResultSchema,
+  canonicalJson, canonProjectionSchema, runSemanticAnalysis, semanticAnalysisResultSchema,
   semanticInputFingerprint, validateSemanticInput, type SemanticAnalyst,
 } from './semantic-analyst.js';
 
@@ -13,8 +13,14 @@ export const storedSemanticAnalysisSchema = z.object({
   createdAt: z.string().datetime(),
   inputFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
   evidenceStale: z.boolean(),
+  ordinal: z.number().int().positive().optional(),
   result: semanticAnalysisResultSchema,
+  canonProjection: canonProjectionSchema.optional(),
+  sourceBindings: z.array(z.object({ bundleId: z.string(), recordId: z.string(), fingerprint: z.string().regex(/^[a-f0-9]{64}$/) }).strict()).max(100).optional(),
 }).strict().refine(value => value.worldId === value.result.worldId);
+export function researchFingerprint(bundle: ResearchBundle, record: ResearchBundle['records'][number]): string {
+  return createHash('sha256').update(canonicalJson({ worldId: bundle.worldId, source: bundle.source, record })).digest('hex');
+}
 export type StoredSemanticAnalysis = z.infer<typeof storedSemanticAnalysisSchema>;
 
 // Server-owned adapter: selects committed records and their scopes, obtains a
@@ -57,6 +63,11 @@ export async function analyzeStoredResearch(options: {
     return store.addSemanticAnalysis(storedSemanticAnalysisSchema.parse({
       id: randomUUID(), worldId, createdAt: new Date().toISOString(),
       inputFingerprint: analysis.inputFingerprint, evidenceStale: false, result: analysis.result,
+      canonProjection: input.canonProjection,
+      sourceBindings: input.records.map(source => {
+        const bundle = snapshot.bundles.find(bundle => bundle.bundleId === source.bundleId)!;
+        return { bundleId: source.bundleId, recordId: source.record.recordId, fingerprint: researchFingerprint(bundle, source.record) };
+      }),
     }));
   });
 }

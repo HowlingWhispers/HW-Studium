@@ -1,3 +1,5 @@
+import { synthesizeSemanticProposals } from './proposal-synthesis.js';
+import { researchFingerprint } from './semantic-service.js';
 import { storedSemanticAnalysisSchema, type StoredSemanticAnalysis } from './semantic-service.js';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
@@ -41,8 +43,9 @@ export class StudiumStore {
   }
 
   addSemanticAnalysis(analysis: StoredSemanticAnalysis): StoredSemanticAnalysis {
-    const value = storedSemanticAnalysisSchema.parse(analysis);
+    const value = storedSemanticAnalysisSchema.parse({ ...analysis, ordinal: [...this.analyses.values()].filter(a => a.worldId === analysis.worldId).reduce((max, a) => Math.max(max, a.ordinal ?? 0), 0) + 1 });
     this.analyses.set(value.id, value);
+    this.synthesizeProposals(value.worldId);
     return value;
   }
 
@@ -53,22 +56,34 @@ export class StudiumStore {
 
   private analyses = new Map<string, StoredSemanticAnalysis>();
 
+  synthesizeProposals(worldId: string): StudiumProposal[] {
+    const next = synthesizeSemanticProposals(worldId, this.listBundlesForWorld(worldId), [...this.analyses.values()], this.getWorldConfig(worldId), this.listProposals(worldId));
+    return this.upsertProposals(next);
+  }
+
   private invalidate(worldId: string) {
     for (const analysis of this.analyses.values()) {
-      if (analysis.worldId === worldId) analysis.evidenceStale = true;
+      if (analysis.worldId !== worldId) continue;
+      const changed = !analysis.sourceBindings || analysis.sourceBindings.some(binding => {
+        const bundle = this.bundles.get(binding.bundleId);
+        const record = bundle?.records.find(record => record.recordId === binding.recordId);
+        return !bundle || !record || researchFingerprint(bundle, record) !== binding.fingerprint;
+      });
+      if (changed) analysis.evidenceStale = true;
     }
     for (const proposal of this.proposals.values()) {
-      if (proposal.worldId === worldId && !proposal.evidenceStale) {
+      if (proposal.worldId === worldId && !proposal.semantic && !proposal.evidenceStale) {
         proposal.evidenceStale = true;
         proposal.updatedAt = new Date().toISOString();
       }
     }
+    this.synthesizeProposals(worldId);
   }
 
   reconcileProposals(worldId: string, next: StudiumProposal[]): StudiumProposal[] {
     const ids = new Set(next.map(proposal => proposal.id));
     for (const proposal of this.proposals.values()) {
-      if (proposal.worldId === worldId && !ids.has(proposal.id) && !proposal.evidenceStale) {
+      if (proposal.worldId === worldId && !proposal.semantic && !ids.has(proposal.id) && !proposal.evidenceStale) {
         proposal.evidenceStale = true;
         proposal.updatedAt = new Date().toISOString();
       }
@@ -103,8 +118,9 @@ export class StudiumStore {
   removeBundle(bundleId: string): boolean {
     const bundle = this.bundles.get(bundleId);
     if (!bundle) return false;
+    this.bundles.delete(bundleId);
     this.invalidate(bundle.worldId);
-    return this.bundles.delete(bundleId);
+    return true;
   }
 
   listBundlesForWorld(worldId: string): ResearchBundle[] {
@@ -112,8 +128,9 @@ export class StudiumStore {
   }
 
   setWorldConfig(config: WorldConfig): WorldConfig {
-    if (!isDeepStrictEqual(this.getWorldConfig(config.worldId), config)) this.invalidate(config.worldId);
+    const changed = !isDeepStrictEqual(this.getWorldConfig(config.worldId), config);
     this.configs.set(config.worldId, config);
+    if (changed) this.invalidate(config.worldId);
     return config;
   }
 
@@ -133,16 +150,19 @@ export class StudiumStore {
 
     for (const proposal of next) {
       const existing = this.proposals.get(proposal.id);
+      const semanticChanged = existing?.semantic && !isDeepStrictEqual(existing.semantic, proposal.semantic);
       const value = existing
         ? {
             ...proposal,
-            status: existing.evidenceStale && existing.status === 'accepted' ? 'ready_for_review' as const : existing.status,
+            status: (existing.evidenceStale || semanticChanged) && existing.status === 'accepted' && !proposal.evidenceStale ? 'ready_for_review' as const : existing.status,
+            draftEdited: existing.draftEdited,
+            orbisDraft: existing.draftEdited ? { ...proposal.orbisDraft, name: existing.orbisDraft.name, summary: existing.orbisDraft.summary } : proposal.orbisDraft,
             createdAt: existing.createdAt,
             updatedAt: proposal.updatedAt,
           }
         : proposal;
 
-      value.evidenceStale = false;
+      value.evidenceStale = proposal.evidenceStale ?? false;
       this.proposals.set(value.id, value);
       merged.push(value);
     }
@@ -167,6 +187,15 @@ export class StudiumStore {
       updatedAt: new Date().toISOString(),
     };
 
+    this.proposals.set(id, updated);
+    return updated;
+  }
+
+  editProposalDraft(id: string, edit: { name: string; summary: string }): StudiumProposal | null {
+    const proposal = this.proposals.get(id);
+    if (!proposal) return null;
+    const updated = { ...proposal, orbisDraft: { ...proposal.orbisDraft, ...edit }, draftEdited: true,
+      status: proposal.status === 'accepted' ? 'ready_for_review' as const : proposal.status, updatedAt: new Date().toISOString() };
     this.proposals.set(id, updated);
     return updated;
   }

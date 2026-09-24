@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import type { StudiumStore } from '../src/store.js';
+import { researchFingerprint, type StoredSemanticAnalysis } from '../src/semantic-service.js';
 import type { ExplainedClaim, SemanticAnalysisInput, SemanticAnalysisResult } from '../src/semantic-analyst.js';
 import type { ResearchBundle } from '../src/contracts.js';
 export function inputFixture(): SemanticAnalysisInput {
@@ -29,4 +32,16 @@ export function resultFixture(claims: ExplainedClaim[] = []): SemanticAnalysisRe
 export function bundleFixture(): ResearchBundle {
   const source = inputFixture().records[0];
   return { schemaVersion: 'studium.bundle.v1', bundleId: source.bundleId, worldId: 'world-a', source: source.source, capturedAt: source.capturedAt, sanitized: true, records: [source.record] };
+}
+
+export function addSupport(store: StudiumStore, n: number, mutate: (item: ExplainedClaim) => void = () => {}) {
+  const bundle = bundleFixture(); bundle.bundleId = `bundle-${n}`; bundle.records[0].recordId = `record-${n}`;
+  store.addBundle(bundle);
+  const item = claimFixture('character_belief'); mutate(item);
+  item.claim.evidence[0].bundleId = bundle.bundleId; item.claim.evidence[0].recordId = bundle.records[0].recordId;
+  const analysis: StoredSemanticAnalysis = { id: randomUUID(), worldId: 'world-a', createdAt: new Date(1_800_000_000_000 + n).toISOString(), inputFingerprint: 'a'.repeat(64), evidenceStale: false,
+    canonProjection: inputFixture().canonProjection,
+    sourceBindings: [{ bundleId: bundle.bundleId, recordId: bundle.records[0].recordId, fingerprint: researchFingerprint(bundle,bundle.records[0]) }], result: resultFixture([item]) };
+  store.addSemanticAnalysis(analysis);
+  return { analysis, bundle, item };
 }
